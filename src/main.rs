@@ -1,16 +1,21 @@
+use core::panic;
 use std::{env};
-
-use crate::transaction_processor::TransactionProcessor;
 mod transaction_processor;
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        panic!("No argument found for transactions file");
+    }
     let filename = &args[1];
-    println!("{}", filename);
-    let mut transaction_processor = TransactionProcessor::new();
-    transaction_processor
+    let mut tx_processor = transaction_processor::TransactionProcessor::new();
+    tx_processor
         .stream_csv(filename)
         .expect("Error reading csv file");
-    transaction_processor.output_client_accounts().unwrap();
+    tx_processor.output_client_accounts().unwrap();
 }
+#[cfg(test)]
+mod tests {
 
+}

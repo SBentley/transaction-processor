@@ -21,7 +21,7 @@ impl TransactionProcessor {
         let mut rdr = csv::Reader::from_path(filename).unwrap();
         for result in rdr.deserialize() {
             let record: Record = result?;
-            println!("{:?}", record);
+            //println!("{:?}", record);
             match record.action {
                 Action::Deposit => self.handle_deposit(record),
                 Action::Withdrawal => self.handle_withdrawal(record),
@@ -35,8 +35,7 @@ impl TransactionProcessor {
 
     // Increase clients available and total by deposit amount. If client account does not exist, create it.
     fn handle_deposit(&mut self, deposit: Record) {
-        let client_id = &deposit.client;
-        let client = self.accounts.get_mut(client_id);
+        let client = self.accounts.get_mut(&deposit.client);
         let deposit_amount = deposit.amount.unwrap();
         match client {
             Some(client) => {
@@ -60,8 +59,7 @@ impl TransactionProcessor {
     }
 
     fn handle_withdrawal(&mut self, withdrawal: Record) {
-        let client_id = &withdrawal.client;
-        let account = self.accounts.get_mut(client_id);
+        let account = self.accounts.get_mut(&withdrawal.client);
         let withdrawal_amount = withdrawal.amount.unwrap();
         if let Some(account) = account {
             if account.available - withdrawal_amount >= 0.0 {
@@ -74,8 +72,7 @@ impl TransactionProcessor {
     }
 
     fn handle_dispute(&mut self, dispute: Record) {
-        let client_id = &dispute.client;
-        let account = self.accounts.get_mut(client_id);
+        let account = self.accounts.get_mut(&dispute.client);
         if let Some(account) = account {
             if let Some(tx) = self.transaction_log.get(&dispute.transaction) {
                 account.held += tx.amount.unwrap();
@@ -85,8 +82,7 @@ impl TransactionProcessor {
     }
 
     fn handle_resolve(&mut self, resolve: Record) {
-        let client_id = resolve.client;
-        let account = self.accounts.get_mut(&client_id);
+        let account = self.accounts.get_mut(&resolve.client);
         if let Some(account) = account {
             if let Some(tx) = self.transaction_log.get(&resolve.transaction) {
                 account.held -= tx.amount.unwrap();
@@ -96,8 +92,7 @@ impl TransactionProcessor {
     }
 
     fn handle_chargeback(&mut self, chargeback: Record) {
-        let client_id = chargeback.client;
-        let account = self.accounts.get_mut(&client_id);
+        let account = self.accounts.get_mut(&chargeback.client);
         if let Some(account) = account {
             if let Some(tx) = self.transaction_log.get(&chargeback.transaction) {
                 account.held -= tx.amount.unwrap();
@@ -141,7 +136,7 @@ struct ClientAccount {
     locked: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 enum Action {
     #[serde(rename = "deposit")]
     Deposit,
