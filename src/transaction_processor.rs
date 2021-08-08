@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
 use std::error::Error;
 use std::io;
@@ -102,7 +102,7 @@ impl TransactionProcessor {
         }
     }
 
-    pub fn output_client_accounts(&self) -> Result<(), Box<dyn Error>> {
+    pub fn print_client_accounts(&self) -> Result<(), Box<dyn Error>> {
         let mut writer = csv::Writer::from_writer(io::stdout());
         for (_, account) in &self.accounts {
             writer.serialize(account)?;
@@ -119,7 +119,7 @@ struct Record {
     client: u16,
     #[serde(rename = "tx")]
     transaction: u32,
-    amount: Option<f64>,
+    amount: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -127,13 +127,23 @@ struct ClientAccount {
     // Client Id
     client: u16,
     // Total funds available for trading. available = total - held.
-    available: f64,
+    #[serde(serialize_with = "four_decimal_serializer")]
+    available: f32,
     // Total funds held for dispute. held = total - available
-    held: f64,
+    #[serde(serialize_with = "four_decimal_serializer")]
+    held: f32,
     // Total funds available or held. Total = available + held.
-    total: f64,
+    #[serde(serialize_with = "four_decimal_serializer")]
+    total: f32,
     // Account is locked if charge back occurs
     locked: bool,
+}
+
+fn four_decimal_serializer<S>(x: &f32, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(format!("{:.4}",x).as_str())
 }
 
 #[derive(Deserialize, Debug)]

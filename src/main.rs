@@ -13,9 +13,5 @@ fn main() {
     tx_processor
         .stream_csv(filename)
         .expect("Error reading csv file");
-    tx_processor.output_client_accounts().unwrap();
-}
-#[cfg(test)]
-mod tests {
-
+    tx_processor.print_client_accounts().unwrap();
 }
