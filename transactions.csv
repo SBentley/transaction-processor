@@ -8,3 +8,8 @@ deposit,3,6,100.0
 withdrawal,3,7,20.8
 dispute,3,7,
 deposit,2,8,11.0
+deposit,3,9,40.0
+withdrawal,3,10,20.0
+deposit,1,11,11.11
+dispute,1,11,
+chargeback,1,11,

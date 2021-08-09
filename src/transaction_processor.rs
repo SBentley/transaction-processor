@@ -4,7 +4,9 @@ use std::error::Error;
 use std::io;
 
 pub struct TransactionProcessor {
+    /// Keep track of all client accounts and associated values
     accounts: HashMap<u16, ClientAccount>,
+    /// Keep basic info on deposit and withdrawal transactions so that we can handle disputes/chargebacks
     transaction_log: HashMap<u32, Record>,
 }
 
@@ -16,12 +18,10 @@ impl TransactionProcessor {
         }
     }
 
-    // Build the CSV reader and iterate over each record.
     pub fn stream_csv(&mut self, filename: &String) -> Result<(), Box<dyn Error>> {
         let mut rdr = csv::Reader::from_path(filename).unwrap();
         for result in rdr.deserialize() {
             let record: Record = result?;
-            //println!("{:?}", record);
             match record.action {
                 Action::Deposit => self.handle_deposit(record),
                 Action::Withdrawal => self.handle_withdrawal(record),
@@ -124,18 +124,18 @@ struct Record {
 
 #[derive(Serialize)]
 struct ClientAccount {
-    // Client Id
+    /// Client Id
     client: u16,
-    // Total funds available for trading. available = total - held.
+    /// Total funds available for trading. available = total - held.
     #[serde(serialize_with = "four_decimal_serializer")]
     available: f32,
-    // Total funds held for dispute. held = total - available
+    /// Total funds held for dispute. held = total - available
     #[serde(serialize_with = "four_decimal_serializer")]
     held: f32,
-    // Total funds available or held. Total = available + held.
+    /// Total funds available or held. Total = available + held.
     #[serde(serialize_with = "four_decimal_serializer")]
     total: f32,
-    // Account is locked if charge back occurs
+    /// Account is locked if charge back occurs
     locked: bool,
 }
 
@@ -143,20 +143,16 @@ fn four_decimal_serializer<S>(x: &f32, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    s.serialize_str(format!("{:.4}",x).as_str())
+    s.serialize_str(format!("{:.4}", x).as_str())
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
 enum Action {
-    #[serde(rename = "deposit")]
     Deposit,
-    #[serde(rename = "withdrawal")]
     Withdrawal,
-    #[serde(rename = "dispute")]
     Dispute,
-    #[serde(rename = "resolve")]
     Resolve,
-    #[serde(rename = "chargeback")]
     Chargeback,
 }
 
@@ -166,6 +162,7 @@ mod tests {
 
     #[test]
     fn test_deposit_increments_correct_amount() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             1,
@@ -183,7 +180,11 @@ mod tests {
             transaction: 1,
             amount: Some(20.0),
         };
+
+        // Act
         tx_processor.handle_deposit(deposit);
+
+        // Assert
         assert!(tx_processor.accounts.contains_key(&1));
         assert_eq!(tx_processor.accounts.get(&1).unwrap().available, 120.0);
         assert_eq!(tx_processor.accounts.get(&1).unwrap().total, 120.0);
@@ -191,6 +192,7 @@ mod tests {
 
     #[test]
     fn test_deposit_inserts_new_client() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         let deposit = Record {
             client: 1,
@@ -198,7 +200,10 @@ mod tests {
             transaction: 1,
             amount: Some(20.0),
         };
+        // Act
         tx_processor.handle_deposit(deposit);
+
+        // Assert
         assert!(tx_processor.accounts.contains_key(&1));
         assert_eq!(tx_processor.accounts.get(&1).unwrap().available, 20.0);
         assert_eq!(tx_processor.accounts.get(&1).unwrap().total, 20.0);
@@ -206,6 +211,7 @@ mod tests {
 
     #[test]
     fn test_withdrawal_subtracts_correct_amount() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -223,13 +229,18 @@ mod tests {
             transaction: 1,
             amount: Some(20.0),
         };
+
+        // Act
         tx_processor.handle_withdrawal(withdrawal);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 80.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().total, 80.0);
     }
 
     #[test]
     fn test_withdrawal_fails_if_account_does_not_have_enough_funds() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -247,13 +258,18 @@ mod tests {
             transaction: 1,
             amount: Some(250.0),
         };
+
+        // Act
         tx_processor.handle_withdrawal(withdrawal);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().total, 100.0);
     }
 
     #[test]
     fn test_dispute_ignores_dispute_for_non_existing_transaction() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -271,7 +287,11 @@ mod tests {
             transaction: 1,
             amount: None,
         };
+
+        // Act
         tx_processor.handle_dispute(dispute);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().total, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().held, 0.0);
@@ -281,6 +301,7 @@ mod tests {
 
     #[test]
     fn test_dispute_changes_available_and_held_values() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -305,10 +326,12 @@ mod tests {
             transaction: 1,
             amount: None,
         };
-
         tx_processor.transaction_log.insert(1, withdrawal);
 
+        // Act
         tx_processor.handle_dispute(dispute);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 75.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().held, 25.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().total, 100.0);
@@ -318,6 +341,7 @@ mod tests {
 
     #[test]
     fn test_resolve_reimburses_client() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -342,8 +366,11 @@ mod tests {
             transaction: 1,
             amount: None,
         };
+
+        // Act
         tx_processor.handle_resolve(resolve);
 
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().held, 0.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().total, 100.0);
@@ -352,6 +379,7 @@ mod tests {
 
     #[test]
     fn test_resolve_ignores_resolve_for_non_existing_transaction() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -369,7 +397,11 @@ mod tests {
             transaction: 1,
             amount: None,
         };
+
+        // Act
         tx_processor.handle_resolve(resolve);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().total, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().held, 0.0);
@@ -379,6 +411,7 @@ mod tests {
 
     #[test]
     fn test_chargeback_ignores_chargeback_for_non_existing_transaction() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -396,7 +429,11 @@ mod tests {
             transaction: 1,
             amount: None,
         };
+
+        // Act
         tx_processor.handle_chargeback(chargeback);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 100.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().held, 0.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().locked, false);
@@ -406,6 +443,7 @@ mod tests {
 
     #[test]
     fn test_chargeback_locks_account_and_changes_values() {
+        // Arrange
         let mut tx_processor = TransactionProcessor::new();
         tx_processor.accounts.insert(
             2,
@@ -430,7 +468,10 @@ mod tests {
             transaction: 1,
             amount: None,
         };
+        // Act
         tx_processor.handle_chargeback(chargeback);
+
+        // Assert
         assert_eq!(tx_processor.accounts.get(&2).unwrap().available, 75.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().held, 0.0);
         assert_eq!(tx_processor.accounts.get(&2).unwrap().locked, true);
