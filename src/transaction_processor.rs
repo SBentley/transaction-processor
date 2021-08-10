@@ -19,7 +19,9 @@ impl TransactionProcessor {
     }
 
     pub fn stream_csv(&mut self, filename: &String) -> Result<(), Box<dyn Error>> {
-        let mut rdr = csv::Reader::from_path(filename).unwrap();
+        let mut rdr = csv::Reader::from_path(filename)
+            .expect(format!("Unable to open {}", filename).as_str());
+
         for result in rdr.deserialize() {
             let record: Record = result?;
             match record.action {
@@ -60,7 +62,9 @@ impl TransactionProcessor {
 
     fn handle_withdrawal(&mut self, withdrawal: Record) {
         let account = self.accounts.get_mut(&withdrawal.client);
-        let withdrawal_amount = withdrawal.amount.unwrap();
+        let withdrawal_amount = withdrawal
+            .amount
+            .expect("Withdrawal transaction did not have a value.");
         if let Some(account) = account {
             if account.available - withdrawal_amount >= 0.0 {
                 account.available -= withdrawal_amount;
@@ -75,8 +79,12 @@ impl TransactionProcessor {
         let account = self.accounts.get_mut(&dispute.client);
         if let Some(account) = account {
             if let Some(tx) = self.transaction_log.get(&dispute.transaction) {
-                account.held += tx.amount.unwrap();
-                account.available -= tx.amount.unwrap();
+                account.held += tx
+                    .amount
+                    .expect("Transaction referenced in a dispute did not have a value.");
+                account.available -= tx
+                    .amount
+                    .expect("Transaction referenced in a dispute did not have a value.");
             }
         }
     }
@@ -85,8 +93,12 @@ impl TransactionProcessor {
         let account = self.accounts.get_mut(&resolve.client);
         if let Some(account) = account {
             if let Some(tx) = self.transaction_log.get(&resolve.transaction) {
-                account.held -= tx.amount.unwrap();
-                account.available += tx.amount.unwrap();
+                account.held -= tx
+                    .amount
+                    .expect("Transaction referenced in a resolution did not have a value.");
+                account.available += tx
+                    .amount
+                    .expect("Transaction referenced in a resolution did not have a value.");
             }
         }
     }
@@ -95,8 +107,12 @@ impl TransactionProcessor {
         let account = self.accounts.get_mut(&chargeback.client);
         if let Some(account) = account {
             if let Some(tx) = self.transaction_log.get(&chargeback.transaction) {
-                account.held -= tx.amount.unwrap();
-                account.total -= tx.amount.unwrap();
+                account.held -= tx
+                    .amount
+                    .expect("Transaction referenced in a chargeback did not have a value.");
+                account.total -= tx
+                    .amount
+                    .expect("Transaction referenced in a chargeback did not have a value.");
                 account.locked = true;
             }
         }
@@ -138,7 +154,6 @@ struct ClientAccount {
     /// Account is locked if charge back occurs
     locked: bool,
 }
-
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]

@@ -12,5 +12,7 @@ fn main() {
     tx_processor
         .stream_csv(filename)
         .expect("Error reading csv file");
-    tx_processor.print_client_accounts().unwrap();
+    tx_processor
+        .print_client_accounts()
+        .expect("Error printing status of client accounts");
 }
