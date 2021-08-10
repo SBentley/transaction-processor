@@ -139,12 +139,6 @@ struct ClientAccount {
     locked: bool,
 }
 
-fn four_decimal_serializer<S>(x: &f32, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_str(format!("{:.4}", x).as_str())
-}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -154,6 +148,13 @@ enum Action {
     Dispute,
     Resolve,
     Chargeback,
+}
+
+fn four_decimal_serializer<S>(x: &f32, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(format!("{:.4}", x).as_str())
 }
 
 #[cfg(test)]
